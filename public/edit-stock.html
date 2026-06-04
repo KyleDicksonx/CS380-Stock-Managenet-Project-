@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Stock - Inventory System</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .item-image {
+            width: 100%;
+            max-height: 260px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            display: none;
+            background: var(--color-background-secondary);
+        }
+        .item-description {
+            font-size: 0.9rem;
+            color: #555;
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <span class="nav-brand" id="navBrand" style="cursor:pointer;">Inventory System</span>
+    <div class="nav-links">
+        <span id="currentUser" style="color:#a8c4e0;font-size:0.88rem;"></span>
+        <a href="/search.html">Search</a>
+        <a href="/create-account.html">Create Account</a>
+        <button id="logoutBtn">Log Out</button>
+    </div>
+</nav>
+
+<div class="page">
+    <h1>Edit Stock</h1>
+
+    <img id="itemImage" class="item-image" alt="Product image">
+
+    <div class="item-info" id="itemInfo">
+        <p><span class="label">Title:</span> <span id="itemName">Loading...</span></p>
+        <p><span class="label">Current Stock:</span> <span id="currentStock">--</span></p>
+        <p class="item-description" id="itemDescription"></p>
+    </div>
+
+    <div class="form-group">
+        <label for="stockInput">New Stock Amount</label>
+        <input type="text" id="stockInput" placeholder="Enter stock amount">
+    </div>
+
+    <div class="btn-row">
+        <button class="btn btn-primary" id="submitBtn">Change Stock</button>
+        <button class="btn btn-secondary" id="backBtn">Back to Search</button>
+    </div>
+
+    <div id="message" class="msg" style="display:none;"></div>
+</div>
+
+<script>
+    fetch('/api/guard').then(r => {
+        if (r.status === 403) window.location.href = '/index.html';
+    });
+
+
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/index.html';
+    });
+
+    document.getElementById('backBtn').addEventListener('click', () => {
+        window.location.href = '/search.html';
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const itemId = params.get('id');
+    if (!itemId) window.location.href = '/search.html';
+
+    // Display logged-in username
+    fetch('/api/auth').then(r => r.json()).then(data => {
+        if (data.loggedIn)
+            document.getElementById('currentUser').textContent = 'Current User: ' + data.username;
+    });
+
+    // Nav brand goes to search
+    document.getElementById('navBrand').addEventListener('click', () => {
+        window.location.href = '/search.html';
+    });
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        const res = await fetch('/api/items/' + itemId);
+        if (res.status === 403) { window.location.href = '/index.html'; return; }
+        if (res.status === 404) { window.location.href = '/search.html'; return; }
+        const data = await res.json();
+
+        document.getElementById('itemName').textContent     = data.item.title;
+        document.getElementById('currentStock').textContent = data.item.stock;
+
+        if (data.item.description) {
+            document.getElementById('itemDescription').textContent = data.item.description;
+        }
+
+        // Show first image if available
+        if (data.item.images && data.item.images.length > 0) {
+            const img = document.getElementById('itemImage');
+            img.src          = data.item.images[0];
+            img.style.display = 'block';
+            img.onerror = () => { img.style.display = 'none'; };
+        }
+    });
+
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+        const stockVal = document.getElementById('stockInput').value.trim();
+
+        if (stockVal === '') {
+            showMsg('Stock field cannot be empty', false);
+            return;
+        }
+        // Check for any non-digit characters (letters, symbols, etc.)
+        if (/[^0-9.\-]/.test(stockVal)) {
+            showMsg('Stock must be a number, no letters or special characters are allowed', false);
+            return;
+        }
+        if (stockVal.includes('.')) {
+            showMsg('Stock must be a whole number', false);
+            return;
+        }
+        if (stockVal.startsWith('-') || parseInt(stockVal, 10) < 0) {
+            showMsg('Stock cannot be negative', false);
+            return;
+        }
+        if (parseInt(stockVal, 10) > 2147483647) {
+            showMsg('Stock cannot exceed 2,147,483,647', false);
+            return;
+        }
+
+        const res  = await fetch('/api/items/' + itemId + '/stock', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ stock: stockVal })
+        });
+        if (res.status === 403) { window.location.href = '/index.html'; return; }
+        const data = await res.json();
+
+        if (data.success) {
+            document.getElementById('currentStock').textContent = data.stock;
+            document.getElementById('stockInput').value = '';
+            showMsg('Stock updated successfully.', true);
+        } else {
+            showMsg(data.error, false);
+        }
+    });
+
+    document.getElementById('stockInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('submitBtn').click();
+    });
+
+    function showMsg(text, success) {
+        const el = document.getElementById('message');
+        el.textContent   = text;
+        el.className     = 'msg ' + (success ? 'msg-success' : 'msg-error');
+        el.style.display = 'block';
+    }
+</script>
+</body>
+</html>

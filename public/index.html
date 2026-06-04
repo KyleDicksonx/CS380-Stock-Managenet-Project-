@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Inventory System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="page">
+    <h1>Login</h1>
+
+    <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="Enter username">
+    </div>
+    <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter password">
+    </div>
+
+    <div class="btn-row">
+        <button class="btn btn-primary" id="submitBtn">Submit</button>
+    </div>
+
+    <div id="message" class="msg" style="display:none;"></div>
+</div>
+
+<script>
+    // If already logged in, go to search
+    fetch('/api/auth').then(r => r.json()).then(data => {
+        if (data.loggedIn) window.location.href = '/search.html';
+    });
+
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const msgEl    = document.getElementById('message');
+
+        // 02Login05 – client-side omission check (server also validates)
+        if (!username || !password) {
+            showMsg('Please fill in all fields.', false);
+            return;
+        }
+        if (username.length > 40) {
+            showMsg('Username cannot exceed 40 characters in length', false);
+            return;
+        }
+        if (password.length > 40) {
+            showMsg('Password cannot exceed 40 characters in length', false);
+            return;
+        }
+
+        const res  = await fetch('/api/login', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            // 02Login01, 02Login02, 02Login06 – redirect to search within 2s
+            window.location.href = '/search.html';
+        } else {
+            showMsg(data.error, false);
+        }
+    });
+
+    // Allow Enter key to submit
+    ['username', 'password'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('submitBtn').click();
+        });
+    });
+
+    function showMsg(text, success) {
+        const el = document.getElementById('message');
+        el.textContent = text;
+        el.className   = 'msg ' + (success ? 'msg-success' : 'msg-error');
+        el.style.display = 'block';
+    }
+</script>
+</body>
+</html>
