@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - Inventory System</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px;
+        }
+        .item-card {
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border: 1px solid #dde0e6;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        }
+        .item-card-img-wrap {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            flex-shrink: 0;
+            overflow: hidden;
+            background: #f0f2f5;
+        }
+        .item-card:hover {
+            border-color: #1e3a5f;
+            box-shadow: 0 2px 10px rgba(30,58,95,0.15);
+        }
+        .item-card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .item-card-img.placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #aaa;
+            font-size: 0.8rem;
+        }
+        .item-card-footer {
+            padding: 8px 10px;
+            border-top: 1px solid #eee;
+            flex-shrink: 0;
+        }
+        .item-name {
+            font-weight: bold;
+            font-size: 0.85rem;
+            white-space: normal;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            color: #1e3a5f;
+        }
+        .item-stock {
+            font-size: 0.78rem;
+            color: #666;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <span class="nav-brand" id="navBrand" style="cursor:pointer;">Inventory System</span>
+    <div class="nav-links">
+        <span id="currentUser" style="color:#a8c4e0;font-size:0.88rem;"></span>
+        <a href="/create-account.html">Create Account</a>
+        <button id="logoutBtn">Log Out</button>
+    </div>
+</nav>
+
+<div class="search-container">
+    <h1>Search Items</h1>
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search by product title...">
+        <button class="btn btn-primary" id="searchBtn">Search</button>
+    </div>
+    <div class="items-grid" id="itemsGrid"></div>
+</div>
+
+<script>
+    fetch('/api/guard').then(r => {
+        if (r.status === 403) window.location.href = '/index.html';
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+        // Display logged-in username
+        fetch('/api/auth').then(r => r.json()).then(data => {
+            if (data.loggedIn)
+                document.getElementById('currentUser').textContent = 'Current User: ' + data.username;
+        });
+        runSearch('');
+    });
+
+
+
+    document.getElementById('searchBtn').addEventListener('click', () => {
+        runSearch(document.getElementById('searchInput').value);
+    });
+
+    document.getElementById('searchInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('searchBtn').click();
+    });
+
+    document.getElementById('navBrand').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        runSearch('');
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/index.html';
+    });
+
+    async function runSearch(query) {
+        const grid = document.getElementById('itemsGrid');
+        grid.innerHTML = '<p class="no-results">Loading...</p>';
+
+        const res = await fetch('/api/search?q=' + encodeURIComponent(query));
+        if (res.status === 403) { window.location.href = '/index.html'; return; }
+
+        const data = await res.json();
+        if (data.error) {
+            grid.innerHTML = '<p class="no-results">Error: ' + escHtml(data.error) + '</p>';
+            return;
+        }
+        renderItems(data.items);
+    }
+
+    function renderItems(items) {
+        const grid = document.getElementById('itemsGrid');
+        grid.innerHTML = '';
+
+        if (!items || items.length === 0) {
+            grid.innerHTML = '<p class="no-results">No items found.</p>';
+            return;
+        }
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'item-card';
+
+            // Image wrapper keeps square aspect ratio independent of footer height
+            const wrap = document.createElement('div');
+            wrap.className = 'item-card-img-wrap';
+            if (item.images && item.images.length > 0) {
+                const img = document.createElement('img');
+                img.className = 'item-card-img';
+                img.alt       = item.title;
+                img.src       = item.images[0];
+                img.onerror   = () => { img.replaceWith(makePlaceholder()); };
+                wrap.appendChild(img);
+            } else {
+                wrap.appendChild(makePlaceholder());
+            }
+            card.appendChild(wrap);
+
+            // Footer
+            const footer = document.createElement('div');
+            footer.className = 'item-card-footer';
+            footer.innerHTML =
+                '<div class="item-name">' + escHtml(item.title) + '</div>' +
+                '<div class="item-stock">Stock: ' + item.stock + '</div>';
+            card.appendChild(footer);
+
+            card.addEventListener('click', () => {
+                window.location.href = '/edit-stock.html?id=' + item.itemId;
+            });
+
+            grid.appendChild(card);
+        });
+    }
+
+    function makePlaceholder() {
+        const div = document.createElement('div');
+        div.className = 'item-card-img placeholder';
+        div.textContent = 'No image';
+        return div;
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g,'&amp;')
+            .replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;');
+    }
+</script>
+</body>
+</html>

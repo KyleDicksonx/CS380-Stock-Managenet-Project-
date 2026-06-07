@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - Inventory System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+    <span class="nav-brand" id="navBrand" style="cursor:pointer;">Inventory System</span>
+    <div class="nav-links">
+        <span id="currentUser" style="color:#a8c4e0;font-size:0.88rem;"></span>
+        <a href="/search.html">Search</a>
+        <button id="logoutBtn">Log Out</button>
+    </div>
+</nav>
+
+<div class="page">
+    <h1>Create Account</h1>
+
+    <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="Enter username">
+    </div>
+    <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter password">
+    </div>
+    <div class="form-group">
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" placeholder="Confirm password">
+    </div>
+
+    <div class="btn-row">
+        <button class="btn btn-primary" id="createBtn">Create Account</button>
+        <!-- 01CreateAccount12 – Cancel redirects to search -->
+        <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+    </div>
+
+    <div id="message" class="msg" style="display:none;"></div>
+</div>
+
+<script>
+    // 01CreateAccount01 / 05LogOut06 – must be logged in to access this page
+    fetch('/api/guard').then(r => {
+        if (r.status === 403) window.location.href = '/index.html';
+    });
+
+    fetch('/api/auth').then(r => r.json()).then(data => {
+        if (data.loggedIn)
+            document.getElementById('currentUser').textContent = 'Current User: ' + data.username;
+    });
+
+    document.getElementById('navBrand').addEventListener('click', () => {
+        window.location.href = '/search.html';
+    });
+
+    // 05LogOut01-03
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/index.html';
+    });
+
+    // 01CreateAccount12
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+        window.location.href = '/search.html';
+    });
+
+    document.getElementById('createBtn').addEventListener('click', async () => {
+        const username        = document.getElementById('username').value;
+        const password        = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (username.length > 40) {
+            showMsg('Username cannot exceed 40 characters in length', false);
+            return;
+        }
+        if (password.length > 40) {
+            showMsg('Password cannot exceed 40 characters in length', false);
+            return;
+        }
+        if (confirmPassword.length > 40) {
+            showMsg('Password cannot exceed 40 characters in length', false);
+            return;
+        }
+
+        const res  = await fetch('/api/create-account', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ username, password, confirmPassword })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showMsg(data.message, true);
+            // Clear fields after success
+            document.getElementById('username').value        = '';
+            document.getElementById('password').value        = '';
+            document.getElementById('confirmPassword').value = '';
+        } else {
+            showMsg(data.error, false);
+        }
+    });
+
+    function showMsg(text, success) {
+        const el = document.getElementById('message');
+        el.textContent   = text;
+        el.className     = 'msg ' + (success ? 'msg-success' : 'msg-error');
+        el.style.display = 'block';
+    }
+</script>
+</body>
+</html>
