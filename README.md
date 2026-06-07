@@ -1,4 +1,4 @@
-# CS380 Inventory Management System
+S# CS380 Inventory Management System
 
 ## Default Login
 
@@ -17,6 +17,8 @@ Github:
 A full-stack inventory management system built with a JavaScript backend, MySQL database, and vanilla HTML/CSS/JS frontend. Product data is sourced from the [Platzi Fake Store API](https://fakeapi.platzi.com/).
 
 ## Setup
+
+This is the settup for the nodejs version. For the settup for the exe version, please see the exe branch. 
 
 1. Install dependencies:
    Install NodeJS and run 'npm install' in the root directory of the project
