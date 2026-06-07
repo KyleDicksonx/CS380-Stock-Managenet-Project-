@@ -28,7 +28,7 @@ const EXTERNAL_API_BASE = 'https://api.escuelajs.co/api/v1';
 const dbConfig = {
     host:     'localhost',
     user:     'root',
-    password: 'SQL_master_password_871',
+    password: '',
 };
 
 async function initDB() {
