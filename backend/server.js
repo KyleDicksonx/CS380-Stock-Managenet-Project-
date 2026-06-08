@@ -31,8 +31,9 @@ const dbConfig = {
     password: '',
 };
 
+// Drops and recreates the inventory_db schema, seeds two default users, and
+// returns an open connection ready for queries.
 async function initDB() {
-    // Connect without specifying a database so we can run DROP/CREATE DATABASE
     const conn = await mysql.createConnection(dbConfig);
 
     await conn.query('DROP DATABASE IF EXISTS inventory_db');
@@ -78,37 +79,31 @@ let db;
 })();
 
 // ── In-memory fallback for Users only (demo without MySQL) ───────────────
+// Mirrors the MySQL seed data so the app is usable without a running database.
 const memStore = {
     users: [
         { UserID: 1, Username: 'Tester001',
           PasswordHash: 'ef92b778bafe771207b9df4e14c05082c3c3f536e71f6b0cbe06cee9d81bd2e0' } // SHA-256 of P@ssw0rd123
     ],
-    products: [],   // populated at runtime via insertProduct
+    products: [],
     nextUserID: 2
 };
 
 // ── External API helpers ───────────────────────────────────────────────────
 
-/**
- * Search products by title from the Platzi Fake Store API.
- * GET /api/v1/products?title=<query>
- * Returns [{ id, title, price, description, category, images }, ...]
- * Empty query fetches first 20 products.
- */
+// Searches the Platzi Fake Store API by title, returning an array of product
+// objects. An empty query fetches all products (large limit to avoid paging).
 async function apiSearchProducts(query) {
     const url = query
         ? `${EXTERNAL_API_BASE}/products?title=${encodeURIComponent(query)}`
         : `${EXTERNAL_API_BASE}/products?offset=0&limit=200000`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('External API error: ' + res.status);
-    return await res.json(); // [{ id, title, ... }]
+    return await res.json();
 }
 
-/**
- * Fetch a single product by ID from the Platzi Fake Store API.
- * GET /api/v1/products/<id>
- * Returns { id, title, price, description, category, images } or throws.
- */
+// Fetches a single product by its numeric ID from the external API.
+// Returns null when the API responds with a non-2xx status.
 async function apiFetchProduct(productId) {
     const res = await fetch(`${EXTERNAL_API_BASE}/products/${productId}`);
     if (!res.ok) return null;
@@ -117,47 +112,38 @@ async function apiFetchProduct(productId) {
 
 // ── Validation helpers ─────────────────────────────────────────────────────
 
+// Returns an error string if username fails length or character constraints,
+// or null when valid. Uses a regex to replace a manual character scan (O(n)).
 function validateUsername(username) {
-    if (!username || username.length === 0)
-        return 'Username must be at least 5 characters long';
-    if (username.length < 5)
+    if (!username || username.length < 5)
         return 'Username must be at least 5 characters long';
     if (username.length > 40)
         return 'Username cannot exceed 40 characters in length';
-    for (let i = 0; i < username.length; i++) {
-        const code = username.charCodeAt(i);
-        if (code < 0x20 || code > 0x7E)
-            return 'Error: The username must contain only ASCII printable characters.';
-    }
+    if (!/^[\x20-\x7E]+$/.test(username))
+        return 'Error: The username must contain only ASCII printable characters.';
     return null;
 }
 
+// Returns an error string if password fails length, character, or complexity
+// constraints, or null when valid. A single lookahead regex replaces two loops
+// and an if-chain, keeping complexity O(n) with fewer branch points.
 function validatePassword(password) {
-    if (!password || password.length === 0)
-        return 'Password must be 8 characters long and contain an upper-case letter, a lower-case letter, and one special character';
-    for (let i = 0; i < password.length; i++) {
-        const code = password.charCodeAt(i);
-        if (code < 0x20 || code > 0x7E)
-            return 'Password may only contain ASCII characters.';
-    }
+    const complexityMsg = 'Password must be 8 characters long and contain an upper-case letter, a lower-case letter, and one special character';
+    if (!password) return complexityMsg;
+    if (!/^[\x20-\x7E]*$/.test(password))
+        return 'Password may only contain ASCII characters.';
     if (password.length > 40)
         return 'Password cannot exceed 40 characters in length';
-    if (password.length < 8)
-        return 'Password must be 8 characters long and contain an upper-case letter, a lower-case letter, and one special character';
-    let hasUpper = false, hasLower = false, hasSpecial = false;
-    const specials = new Set('!@#$%^&*()_+-=[]{}|;:\'",.<>?/`~\\');
-    for (const ch of password) {
-        if      (ch >= 'A' && ch <= 'Z') hasUpper  = true;
-        else if (ch >= 'a' && ch <= 'z') hasLower  = true;
-        else if (specials.has(ch))       hasSpecial = true;
-    }
-    if (!hasUpper || !hasLower || !hasSpecial)
-        return 'Password must be 8 characters long and contain an upper-case letter, a lower-case letter, and one special character';
+    if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*()\-_+=[\]{}|;:'",.<>?/`~\\]).{8,}$/.test(password))
+        return complexityMsg;
     return null;
 }
 
 // ── DB abstraction ─────────────────────────────────────────────────────────
+// Each method delegates to MySQL when a connection is available, falling back
+// to memStore so the app runs in demo mode without a database.
 const DB = {
+    // Looks up a user row by exact username match; returns null if not found.
     async findUserByUsername(username) {
         if (db) {
             const [rows] = await db.execute(
@@ -166,6 +152,8 @@ const DB = {
         }
         return memStore.users.find(u => u.Username === username) || null;
     },
+
+    // Inserts a new user with an auto-incremented ID; returns the new UserID.
     async createUser(username, passwordHash) {
         if (db) {
             const [rows] = await db.execute('SELECT MAX(UserID) AS maxId FROM Users');
@@ -179,6 +167,8 @@ const DB = {
         memStore.users.push({ UserID, Username: username, PasswordHash: passwordHash });
         return UserID;
     },
+
+    // Returns every row in the Products table as an array.
     async getAllStock() {
         if (db) {
             const [rows] = await db.execute('SELECT * FROM Products');
@@ -186,6 +176,8 @@ const DB = {
         }
         return memStore.products;
     },
+
+    // Returns the Products row for a single ID, or null if it does not exist.
     async getStockById(productId) {
         if (db) {
             const [rows] = await db.execute(
@@ -194,6 +186,8 @@ const DB = {
         }
         return memStore.products.find(p => p.ProductID === parseInt(productId)) || null;
     },
+
+    // Inserts a new product row with the given stock level.
     async insertProduct(productId, stock) {
         if (db) {
             await db.execute(
@@ -202,6 +196,9 @@ const DB = {
         }
         memStore.products.push({ ProductID: parseInt(productId), Stock: stock });
     },
+
+    // Updates the stock level for an existing product; returns false when the
+    // product ID is not found so callers can respond with 404.
     async updateStock(productId, stock) {
         if (db) {
             const [result] = await db.execute(
@@ -224,8 +221,8 @@ app.use(session({
     saveUninitialized: false,
     cookie:            { httpOnly: true }
 }));
-// Force browser to always revalidate HTML pages — prevents back button from
-// serving a cached copy and ensures stock values are always fresh.
+// Prevents the browser from caching HTML pages so stock values are always
+// fetched fresh and the back button cannot show a stale logged-in view.
 app.use((req, res, next) => {
     if (req.path.endsWith('.html') || req.path === '/') {
         res.setHeader('Cache-Control', 'no-store');
@@ -234,12 +231,15 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Rejects requests from unauthenticated sessions with 403 Forbidden.
 function requireLogin(req, res, next) {
     if (req.session && req.session.userId) return next();
     res.status(403).json({ error: 'Forbidden' });
 }
 
 // ── Login (UC 02) ──────────────────────────────────────────────────────────
+// Validates credentials by hashing the submitted password with SHA-256 and
+// comparing it to the stored hash; establishes a session on success.
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
 
@@ -261,11 +261,13 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ── Logout (UC 05) ─────────────────────────────────────────────────────────
+// Destroys the server-side session, invalidating the user's cookie.
 app.post('/api/logout', (req, res) => {
     req.session.destroy(() => res.json({ success: true }));
 });
 
 // ── Auth status ────────────────────────────────────────────────────────────
+// Returns the current session state so the frontend can show/hide UI elements.
 app.get('/api/auth', (req, res) => {
     if (req.session && req.session.userId)
         return res.json({ loggedIn: true, username: req.session.username });
@@ -273,6 +275,8 @@ app.get('/api/auth', (req, res) => {
 });
 
 // ── Create Account (UC 01) ─────────────────────────────────────────────────
+// Validates both fields, rejects duplicate usernames, then stores the new user
+// with a SHA-256 password hash (consistent with the login endpoint).
 app.post('/api/create-account', requireLogin, async (req, res) => {
     const { username, password, confirmPassword } = req.body;
 
@@ -300,22 +304,21 @@ app.post('/api/create-account', requireLogin, async (req, res) => {
 });
 
 // ── Search (UC 03) ─────────────────────────────────────────────────────────
-// Fetches matching products from the external API, merges stock from DB.
+// Fetches matching products from the external API, merges stock levels from the
+// local DB, and auto-assigns random stock (1–50) for any product seen for the
+// first time. All lookups and merges run in O(n) via a hash map.
 app.get('/api/search', requireLogin, async (req, res) => {
     const query = req.query.q || '';
 
     try {
-        // 1. Get matching products (with titles) from external API — O(n)
         const apiProducts = await apiSearchProducts(query);
+        const stockRows   = await DB.getAllStock();
 
-        // 2. Get all stock rows from DB — O(m)
-        const stockRows = await DB.getAllStock();
-
-        // 3. Build stock lookup map keyed by ProductID — O(m)
+        // Build an O(1)-lookup map from the flat stock array — O(m)
         const stockMap = {};
         for (const row of stockRows) stockMap[row.ProductID] = row.Stock;
 
-        // 4. For any API product not yet in DB, insert with random stock 1-50 — O(n)
+        // Assign and persist stock for products not yet tracked in the DB — O(n)
         const insertPromises = [];
         for (const p of apiProducts) {
             if (stockMap[p.id] === undefined) {
@@ -326,7 +329,7 @@ app.get('/api/search', requireLogin, async (req, res) => {
         }
         if (insertPromises.length > 0) await Promise.all(insertPromises);
 
-        // 5. Merge stock into API results — O(n)
+        // Combine API metadata with local stock levels into the response shape
         const items = apiProducts.map(p => ({
             itemId: p.id,
             title:  p.title,
@@ -341,7 +344,8 @@ app.get('/api/search', requireLogin, async (req, res) => {
 });
 
 // ── Edit Stock (UC 04) ─────────────────────────────────────────────────────
-// GET: fetch product details from external API + stock from DB
+// Fetches live product metadata from the external API and merges it with the
+// local stock level so the edit page always shows current details.
 app.get('/api/items/:id', requireLogin, async (req, res) => {
     const productId = req.params.id;
 
@@ -366,7 +370,8 @@ app.get('/api/items/:id', requireLogin, async (req, res) => {
     }
 });
 
-// POST: update stock in DB only
+// Validates the submitted stock value and writes it to the DB.
+// Rejects negative numbers and values beyond MySQL INT range.
 app.post('/api/items/:id/stock', requireLogin, async (req, res) => {
     const { stock } = req.body;
     const stockNum  = parseInt(stock, 10);
@@ -383,6 +388,7 @@ app.post('/api/items/:id/stock', requireLogin, async (req, res) => {
 });
 
 // ── Auth guard endpoint ────────────────────────────────────────────────────
+// Lets the frontend check session validity without a full page load.
 app.get('/api/guard', (req, res) => {
     if (req.session && req.session.userId)
         return res.json({ allowed: true });
