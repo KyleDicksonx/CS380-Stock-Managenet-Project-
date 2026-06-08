@@ -1,4 +1,4 @@
-S# CS380 Inventory Management System
+## CS380 Inventory Management System
 
 ## Default Login
 
