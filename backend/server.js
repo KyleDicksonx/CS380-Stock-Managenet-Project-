@@ -15,7 +15,6 @@
 
 const express = require('express');
 const session = require('express-session');
-const bcrypt  = require('bcryptjs');
 const mysql   = require('mysql2/promise');
 const path    = require('path');
 
@@ -42,7 +41,7 @@ async function initDB() {
 
     await conn.query(`
         CREATE TABLE Users(
-            UserID int primary key NOT NULL,
+            UserID int primary key NOT NULL AUTO_INCREMENT,
             Username varchar(40) NOT NULL,
             PasswordHash varchar(64) NOT NULL
         )
@@ -56,10 +55,10 @@ async function initDB() {
     `);
 
     await conn.query(`
-        INSERT INTO Users(UserID, Username, PasswordHash)
+        INSERT INTO Users(Username, PasswordHash)
         VALUES
-            (1, 'Tester001', SHA2('P@ssw0rd123', 256)),
-            (2, '1',         SHA2('1', 256))
+            ('Tester001', SHA2('P@ssw0rd123', 256)),
+            ('1',         SHA2('1', 256))
     `);
 
     console.log('Database initialised.');
@@ -72,31 +71,20 @@ let db;
         db = await initDB();
         console.log('Connected to MySQL database.');
     } catch (err) {
-        console.warn('MySQL not available – using in-memory store for demo.');
-        console.warn(err.message);
-        db = null;
+        console.error('MySQL not available – server cannot start.');
+        console.error(err.message);
+        process.exit(1);
     }
 })();
-
-// ── In-memory fallback for Users only (demo without MySQL) ───────────────
-// Mirrors the MySQL seed data so the app is usable without a running database.
-const memStore = {
-    users: [
-        { UserID: 1, Username: 'Tester001',
-          PasswordHash: 'ef92b778bafe771207b9df4e14c05082c3c3f536e71f6b0cbe06cee9d81bd2e0' } // SHA-256 of P@ssw0rd123
-    ],
-    products: [],
-    nextUserID: 2
-};
 
 // ── External API helpers ───────────────────────────────────────────────────
 
 // Searches the Platzi Fake Store API by title, returning an array of product
-// objects. An empty query fetches all products (large limit to avoid paging).
+// objects. An empty query fetches all products 
 async function apiSearchProducts(query) {
     const url = query
         ? `${EXTERNAL_API_BASE}/products?title=${encodeURIComponent(query)}`
-        : `${EXTERNAL_API_BASE}/products?offset=0&limit=200000`;
+        : `${EXTERNAL_API_BASE}/products?`;//offset=0&limit=200000
     const res = await fetch(url);
     if (!res.ok) throw new Error('External API error: ' + res.status);
     return await res.json();
@@ -115,100 +103,86 @@ async function apiFetchProduct(productId) {
 // Returns an error string if username fails length or character constraints,
 // or null when valid. Uses a regex to replace a manual character scan (O(n)).
 function validateUsername(username) {
+	
+	// Username too short length check
     if (!username || username.length < 5)
         return 'Username must be at least 5 characters long';
+	
+	// Userame too long check
     if (username.length > 40)
         return 'Username cannot exceed 40 characters in length';
+	
+	// Only ASCII characters check
     if (!/^[\x20-\x7E]+$/.test(username))
         return 'Error: The username must contain only ASCII printable characters.';
     return null;
 }
 
-// Returns an error string if password fails length, character, or complexity
-// constraints, or null when valid. A single lookahead regex replaces two loops
-// and an if-chain, keeping complexity O(n) with fewer branch points.
+/**
+ * Uses regex to test the password requirements
+*/
 function validatePassword(password) {
     const complexityMsg = 'Password must be 8 characters long and contain an upper-case letter, a lower-case letter, and one special character';
+	
+	// empty password check
     if (!password) return complexityMsg;
+	
+	// Only ASCII characters check
     if (!/^[\x20-\x7E]*$/.test(password))
         return 'Password may only contain ASCII characters.';
+	
+	// Password too long check
     if (password.length > 40)
         return 'Password cannot exceed 40 characters in length';
+	
+	// Upper, Lower, and special character check. 
     if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*()\-_+=[\]{}|;:'",.<>?/`~\\]).{8,}$/.test(password))
         return complexityMsg;
     return null;
 }
 
 // ── DB abstraction ─────────────────────────────────────────────────────────
-// Each method delegates to MySQL when a connection is available, falling back
-// to memStore so the app runs in demo mode without a database.
 const DB = {
     // Looks up a user row by exact username match; returns null if not found.
     async findUserByUsername(username) {
-        if (db) {
-            const [rows] = await db.execute(
-                'SELECT * FROM Users WHERE Username = ?', [username]);
-            return rows[0] || null;
-        }
-        return memStore.users.find(u => u.Username === username) || null;
+        const [rows] = await db.execute(
+            'SELECT * FROM Users WHERE Username = ?', [username]);
+        return rows[0] || null;
     },
 
-    // Inserts a new user with an auto-incremented ID; returns the new UserID.
+    // Inserts a new user; AUTO_INCREMENT assigns the UserID. Returns the new UserID.
     async createUser(username, passwordHash) {
-        if (db) {
-            const [rows] = await db.execute('SELECT MAX(UserID) AS maxId FROM Users');
-            const nextId = (rows[0].maxId || 0) + 1;
-            await db.execute(
-                'INSERT INTO Users (UserID, Username, PasswordHash) VALUES (?, ?, ?)',
-                [nextId, username, passwordHash]);
-            return nextId;
-        }
-        const UserID = memStore.nextUserID++;
-        memStore.users.push({ UserID, Username: username, PasswordHash: passwordHash });
-        return UserID;
+        const [result] = await db.execute(
+            'INSERT INTO Users (Username, PasswordHash) VALUES (?, ?)',
+            [username, passwordHash]);
+        return result.insertId;
     },
 
     // Returns every row in the Products table as an array.
     async getAllStock() {
-        if (db) {
-            const [rows] = await db.execute('SELECT * FROM Products');
-            return rows;
-        }
-        return memStore.products;
+        const [rows] = await db.execute('SELECT * FROM Products');
+        return rows;
     },
 
     // Returns the Products row for a single ID, or null if it does not exist.
     async getStockById(productId) {
-        if (db) {
-            const [rows] = await db.execute(
-                'SELECT * FROM Products WHERE ProductID = ?', [productId]);
-            return rows[0] || null;
-        }
-        return memStore.products.find(p => p.ProductID === parseInt(productId)) || null;
+        const [rows] = await db.execute(
+            'SELECT * FROM Products WHERE ProductID = ?', [productId]);
+        return rows[0] || null;
     },
 
     // Inserts a new product row with the given stock level.
     async insertProduct(productId, stock) {
-        if (db) {
-            await db.execute(
-                'INSERT INTO Products (ProductID, Stock) VALUES (?, ?)', [productId, stock]);
-            return;
-        }
-        memStore.products.push({ ProductID: parseInt(productId), Stock: stock });
+        await db.execute(
+            'INSERT INTO Products (ProductID, Stock) VALUES (?, ?)', [productId, stock]);
     },
 
     // Updates the stock level for an existing product; returns false when the
     // product ID is not found so callers can respond with 404.
     async updateStock(productId, stock) {
-        if (db) {
-            const [result] = await db.execute(
-                'UPDATE Products SET Stock = ? WHERE ProductID = ?', [stock, productId]);
-            return result.affectedRows > 0;
-        }
-        const product = memStore.products.find(p => p.ProductID === parseInt(productId));
-        if (!product) return false;
-        product.Stock = stock;
-        return true;
+        const [result] = await db.execute(
+            'UPDATE Products SET Stock = ? WHERE ProductID = ?', [stock, productId]);
+        return result.affectedRows > 0;
     }
 };
 
@@ -221,14 +195,6 @@ app.use(session({
     saveUninitialized: false,
     cookie:            { httpOnly: true }
 }));
-// Prevents the browser from caching HTML pages so stock values are always
-// fetched fresh and the back button cannot show a stale logged-in view.
-app.use((req, res, next) => {
-    if (req.path.endsWith('.html') || req.path === '/') {
-        res.setHeader('Cache-Control', 'no-store');
-    }
-    next();
-});
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Rejects requests from unauthenticated sessions with 403 Forbidden.
