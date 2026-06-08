@@ -45,11 +45,10 @@ This is the setup for the nodejs version. If you do not wish to install NodeJS r
 	Default port is 3000
 
 ## inventory.exe settup
-1. The inventory.exe only requires the /public/ directory to function in addition to the executable itself.
-2.  You must open the http://localhost:<port> manually with the exe.
-3.  MySQL must be running with a master password of ""
-4. You can set the master password with A	LTER USER 'root'@'localhost' IDENTIFIED BY '';
-											FLUSH PRIVILEGES;
+1.  The inventory.exe only requires the /public dir to function
+3.  You must open the http://localhost:<port> manually with the exe. ( Default = 3000 )
+4.  A MySQL server must be running with a master password of ""
+5.  You can set the master password with ALTER USER 'root'@'localhost' IDENTIFIED BY ''; FLUSH PRIVILEGES;
 
 
 ## Database Schema
