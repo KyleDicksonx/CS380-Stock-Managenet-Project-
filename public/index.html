@@ -38,7 +38,7 @@
         const password = document.getElementById('password').value;
         const msgEl    = document.getElementById('message');
 
-        // 02Login05 – client-side omission check (server also validates)
+        // Client-side empty field check before sending to server
         if (!username || !password) {
             showMsg('Please fill in all fields.', false);
             return;
@@ -60,7 +60,7 @@
         const data = await res.json();
 
         if (data.success) {
-            // 02Login01, 02Login02, 02Login06 – redirect to search within 2s
+            // Redirect to search on successful login
             window.location.href = '/search.html';
         } else {
             showMsg(data.error, false);

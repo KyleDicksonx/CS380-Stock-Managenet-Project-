@@ -35,7 +35,6 @@
 
     <div class="btn-row">
         <button class="btn btn-primary" id="createBtn">Create Account</button>
-        <!-- 01CreateAccount12 – Cancel redirects to search -->
         <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
     </div>
 
@@ -43,7 +42,7 @@
 </div>
 
 <script>
-    // 01CreateAccount01 / 05LogOut06 – must be logged in to access this page
+    // Redirect to login if not authenticated
     fetch('/api/guard').then(r => {
         if (r.status === 403) window.location.href = '/index.html';
     });
@@ -57,13 +56,13 @@
         window.location.href = '/search.html';
     });
 
-    // 05LogOut01-03
+    // Log out and redirect to login page
     document.getElementById('logoutBtn').addEventListener('click', async () => {
         await fetch('/api/logout', { method: 'POST' });
         window.location.href = '/index.html';
     });
 
-    // 01CreateAccount12
+    // Cancel returns to search without making changes
     document.getElementById('cancelBtn').addEventListener('click', () => {
         window.location.href = '/search.html';
     });
