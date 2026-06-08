@@ -64,8 +64,6 @@
         if (r.status === 403) window.location.href = '/index.html';
     });
 
-
-
     document.getElementById('logoutBtn').addEventListener('click', async () => {
         await fetch('/api/logout', { method: 'POST' });
         window.location.href = '/index.html';
@@ -128,7 +126,7 @@
             showMsg('Stock must be a whole number', false);
             return;
         }
-        if (stockVal.startsWith('-') || parseInt(stockVal, 10) < 0) {
+        if (stockVal.startsWith('-')) {
             showMsg('Stock cannot be negative', false);
             return;
         }

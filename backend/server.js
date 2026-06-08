@@ -17,6 +17,7 @@ const express = require('express');
 const session = require('express-session');
 const mysql   = require('mysql2/promise');
 const path    = require('path');
+const crypto  = require('crypto');
 
 const app  = express();
 const PORT = 3000;
@@ -36,7 +37,7 @@ async function initDB() {
     const conn = await mysql.createConnection(dbConfig);
 
     await conn.query('DROP DATABASE IF EXISTS inventory_db');
-    await conn.query('CREATE DATABASE IF NOT EXISTS inventory_db');
+    await conn.query('CREATE DATABASE inventory_db');
     await conn.query('USE inventory_db');
 
     await conn.query(`
@@ -84,7 +85,7 @@ let db;
 async function apiSearchProducts(query) {
     const url = query
         ? `${EXTERNAL_API_BASE}/products?title=${encodeURIComponent(query)}`
-        : `${EXTERNAL_API_BASE}/products?`;//offset=0&limit=200000
+        : `${EXTERNAL_API_BASE}/products?`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('External API error: ' + res.status);
     return await res.json();
@@ -203,7 +204,7 @@ function requireLogin(req, res, next) {
     res.status(403).json({ error: 'Forbidden' });
 }
 
-// ── Login (UC 02) ──────────────────────────────────────────────────────────
+// ── Login ──────────────────────────────────────────────────────────────────
 // Validates credentials by hashing the submitted password with SHA-256 and
 // comparing it to the stored hash; establishes a session on success.
 app.post('/api/login', async (req, res) => {
@@ -216,7 +217,6 @@ app.post('/api/login', async (req, res) => {
     if (!user)
         return res.status(401).json({ error: 'Incorrect credentials.' });
 
-    const crypto = require('crypto');
     const hash   = crypto.createHash('sha256').update(password).digest('hex');
     if (hash !== user.PasswordHash)
         return res.status(401).json({ error: 'Incorrect credentials.' });
@@ -226,7 +226,7 @@ app.post('/api/login', async (req, res) => {
     res.json({ success: true });
 });
 
-// ── Logout (UC 05) ─────────────────────────────────────────────────────────
+// ── Logout ─────────────────────────────────────────────────────────────────
 // Destroys the server-side session, invalidating the user's cookie.
 app.post('/api/logout', (req, res) => {
     req.session.destroy(() => res.json({ success: true }));
@@ -240,9 +240,9 @@ app.get('/api/auth', (req, res) => {
     res.json({ loggedIn: false });
 });
 
-// ── Create Account (UC 01) ─────────────────────────────────────────────────
+// ── Create Account ─────────────────────────────────────────────────────────
 // Validates both fields, rejects duplicate usernames, then stores the new user
-// with a SHA-256 password hash (consistent with the login endpoint).
+// with a SHA-256 password hash.
 app.post('/api/create-account', requireLogin, async (req, res) => {
     const { username, password, confirmPassword } = req.body;
 
@@ -260,7 +260,6 @@ app.post('/api/create-account', requireLogin, async (req, res) => {
         return res.status(400).json({ error: 'That username is already taken' });
 
     try {
-        const crypto       = require('crypto');
         const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
         await DB.createUser(username, passwordHash);
         res.json({ success: true, message: 'Account Creation Successful' });
@@ -269,7 +268,7 @@ app.post('/api/create-account', requireLogin, async (req, res) => {
     }
 });
 
-// ── Search (UC 03) ─────────────────────────────────────────────────────────
+// ── Search ─────────────────────────────────────────────────────────────────
 // Fetches matching products from the external API, merges stock levels from the
 // local DB, and auto-assigns random stock (1–50) for any product seen for the
 // first time. All lookups and merges run in O(n) via a hash map.
@@ -309,7 +308,7 @@ app.get('/api/search', requireLogin, async (req, res) => {
     }
 });
 
-// ── Edit Stock (UC 04) ─────────────────────────────────────────────────────
+// ── Edit Stock ─────────────────────────────────────────────────────────────
 // Fetches live product metadata from the external API and merges it with the
 // local stock level so the edit page always shows current details.
 app.get('/api/items/:id', requireLogin, async (req, res) => {
