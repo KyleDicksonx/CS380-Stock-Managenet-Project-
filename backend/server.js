@@ -123,7 +123,7 @@ function validateUsername(username) {
  * Uses regex to test the password requirements
 */
 function validatePassword(password) {
-    const complexityMsg = 'Password must be 8 characters long and contain an upper-case letter, a lower-case letter, and one special character';
+    const complexityMsg = 'Password must be 8 characters long and contain an upper-case letter, a lower-case letter, a number, and one special character';
 	
 	// empty password check
     if (!password) return complexityMsg;
@@ -137,7 +137,7 @@ function validatePassword(password) {
         return 'Password cannot exceed 40 characters in length';
 	
 	// Upper, Lower, and special character check. 
-    if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*()\-_+=[\]{}|;:'",.<>?/`~\\]).{8,}$/.test(password))
+    if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[!@#$%^&*()\-_+=[\]{}|;:'",.<>?/`~\\]).{8,}$/.test(password))
         return complexityMsg;
     return null;
 }
