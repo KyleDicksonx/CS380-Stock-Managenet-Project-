@@ -23,8 +23,7 @@ A full-stack inventory management system built with a JavaScript backend, MySQL 
 
 ## Setup
 
-This is the setup for the nodejs version. If you do not wish to install NodeJS run the inventory.exe. The inventory.exe only requires the /public/ directory to function in addition to the executable itself. You must open the http://localhost:<port> manually with the exe. 
-
+This is the setup for the nodejs version. If you do not wish to install NodeJS run the inventory.exe. Instrctions can be found below. 
 1. Install dependencies:
    Install NodeJS and run 'npm install' in the root directory of the project
   
@@ -44,6 +43,14 @@ This is the setup for the nodejs version. If you do not wish to install NodeJS r
 
 4. Navigate to `http://localhost:<port>` if you did not use start.bat and log in with the default credentials above.
 	Default port is 3000
+
+## inventory.exe settup
+1. The inventory.exe only requires the /public/ directory to function in addition to the executable itself.
+2.  You must open the http://localhost:<port> manually with the exe.
+3.  MySQL must be running with a master password of ""
+4. You can set the master password with A	LTER USER 'root'@'localhost' IDENTIFIED BY '';
+											FLUSH PRIVILEGES;
+
 
 ## Database Schema
 
