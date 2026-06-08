@@ -80,4 +80,5 @@ This is the settup for the nodejs version. For the settup for the exe version, p
 ## Notes
 
 - Products are auto-inserted with random stock (1–50) on first fetch from the API.
+- Everything under /node_modules/ is part of NodeJS and not created for this project specifically. 
 
