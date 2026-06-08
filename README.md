@@ -5,6 +5,11 @@ S# CS380 Inventory Management System
 Username : Tester001
 Password : P@ssw0rd123
 
+## Testing Login
+
+Username : 1
+Password : 1
+
 ## Authors
 
 Github:
