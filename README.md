@@ -23,7 +23,7 @@ A full-stack inventory management system built with a JavaScript backend, MySQL 
 
 ## Setup
 
-This is the settup for the nodejs version. For the settup for the exe version, please see the exe branch. 
+This is the setup for the nodejs version. If you do not wish to install NodeJS run the inventory.exe. The inventory.exe only requires the /public/ directory to function in addition to the executable itself. 
 
 1. Install dependencies:
    Install NodeJS and run 'npm install' in the root directory of the project
